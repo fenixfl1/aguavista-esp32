@@ -1,0 +1,110 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" type="text/css" href="./style.css" />
+    <title>Aquavista</title>
+  </head>
+
+  <body>
+    <script>
+      var url = "ws://192.168.4.1:1337/";
+
+      function init() {
+        wsConnect(url);
+      }
+
+      function wsConnect(url) {
+        websocket = new WebSocket(url);
+
+        var alert = document.getElementById("alert");
+
+        websocket.onopen = function (event) {
+          alert.innerHTML = "ws connected";
+          alert.classList.add("fade-in");
+          alert.classList.add("alert-info");
+
+          setTimeout(function () {
+            alert.classList.remove("fade-in");
+            alert.classList.add("fade-out");
+          }, 5000);
+        };
+
+        websocket.onclose = function (event) {
+          alert.innerHTML = "ws connected";
+          alert.classList.add("fade-in");
+          alert.classList.add("alert-danger");
+
+          setTimeout(function () {
+            alert.classList.remove("fade-in");
+            alert.classList.add("fade-out");
+          }, 5000);
+        };
+
+        websocket.onmessage = function (event) {
+          console.log("Message received: " + event.data);
+        };
+
+        websocket.onerror = function (event) {
+          console.log("Error: " + event.data);
+        };
+      }
+
+      function wsSend(message) {
+        console.log("Sending message: " + message);
+        if (websocket.readyState === WebSocket.OPEN) {
+          websocket.send(message);
+        } else {
+          console.log("The connection is not open.");
+        }
+      }
+
+      function handleOnSubmit(event) {
+        var form = document.getElementById("login-form");
+
+        if (form.username.value == "" || form.password.value == "") {
+          alert("Please fill in all fields");
+          return;
+        }
+
+        var data = {
+          username: form.username.value,
+          password: form.password.value,
+        };
+
+        wsSend(JSON.stringify(data));
+      }
+
+      window.addEventListener("load", init, false);
+    </script>
+    <div class="container">
+      <div class="card">
+        <h1>
+          <h3 class="text-center">Aquavista Login</h3>
+        </h1>
+        <div class="divider divider-horizontal"></div>
+
+        <div id="alert" class="alert"></div>
+        <form
+          method="POST"
+          action="http://192.168.4.1/login"
+          id="login-form"
+          onsubmit="wsSend()"
+        >
+          <div class="form-group">
+            <div class="form-control">
+              <label for="username">Username</label>
+              <input type="text" name="username" id="username" required />
+            </div>
+
+            <div class="form-control">
+              <label for="password">Password</label>
+              <input type="password" name="password" id="password" required />
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Login</button>
+        </form>
+      </div>
+    </div>
+  </body>
+</html>
