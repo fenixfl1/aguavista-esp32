@@ -19,6 +19,8 @@ public:
     void renameFile(fs::FS &fs, const char *path1, const char *path2);
     void deleteFile(fs::FS &fs, const char *path);
     const char *getConfig(const char *key);
+    // setConfig is use to set a value to a key in the config.json file in the SPIFFS and return true if the operation is successful and false if it is not
+    bool setConfig(const char *key, const char *value);
 };
 
 #endif // FILE_MANAGER_H

@@ -2,12 +2,12 @@
 #include <WiFiClient.h>
 #include "wifi_manager.h"
 #include "firebase_manager.h"
-#include "http_server_manager.h"
+#include "async_web_server_manager.h"
 
 FileManager fileManager;
 WifiManager wifiManager;
 FirebaseManager firebaseManager;
-HttpServerManager httpServer(80, 1337);
+AsyncWebServerManager httpServer(80, 1337);
 
 WiFiClient client(80);
 
@@ -18,7 +18,7 @@ void setup()
   fileManager.begin();
 
   wifiManager.begin(fileManager);
-  httpServer.begin();
+  httpServer.begin(fileManager);
 
   if (wifiManager.isConnected())
   {

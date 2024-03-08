@@ -85,6 +85,7 @@ body {
   color: var(--text-color);
 }
 
+select,
 input[type="password"],
 input[type="text"] {
   padding: 1rem 1.5rem;
@@ -97,6 +98,7 @@ input[type="text"] {
   transition: 0.3s;
 }
 
+select:focus,
 input[type="password"]:focus,
 input[type="text"]:focus {
   border: 1px solid #2ecc71;

@@ -12,8 +12,9 @@ bool WifiManager::isConnected()
 
 void WifiManager::begin(FileManager fileManager)
 {
-    String ssid = fileManager.getConfig("EXTERNAL_WIFI_SSID"); // "SM-J727P1F1";
-    String pass = fileManager.getConfig("EXTERNAL_WIFI_PASS"); // "12121212";
+
+    const String ssid = fileManager.getConfig("EXTERNAL_WIFI_SSID"); // "SM-J727P1F1";
+    const String pass = fileManager.getConfig("EXTERNAL_WIFI_PASS"); // "12121212";
 
     if (ssid != NULL)
     {
@@ -37,42 +38,17 @@ void WifiManager::begin(FileManager fileManager)
     }
     else
     {
-        if (WiFi.status() != WL_CONNECTED)
-        {
-            int numStations = WiFi.softAPgetStationNum();
-            String ssid = fileManager.getConfig("APP_WIFI_SSID");
-            String pass = fileManager.getConfig("APP_WIFI_PASS");
 
-            Serial.println("\n");
-            Serial.println("No se pudo conectar a WiFi. Iniciando modo AP...");
+        int numStations = WiFi.softAPgetStationNum();
+        const String ssid = fileManager.getConfig("APP_WIFI_SSID");
+        const String pass = fileManager.getConfig("APP_WIFI_PASS");
 
-            WiFi.disconnect();
-            delay(100);
+        WiFi.disconnect();
+        delay(100);
 
-            // Configurar el ESP32 como un punto de acceso
-            WiFi.softAP(ssid, pass);
+        // Configurar el ESP32 como un punto de acceso
+        WiFi.softAP(ssid, pass);
 
-            Serial.print("Punto de acceso iniciado");
-
-            Serial.println("\n");
-            Serial.println(ssid);
-            Serial.println(WiFi.softAPIP());
-
-            // Si hay estaciones conectadas al ESP32, mostrar sus direcciones IP
-            if (numStations > 0)
-            {
-                Serial.println("Estaciones conectadas al ESP32:");
-                for (int i = 0; i < numStations; i++)
-                {
-                    Serial.print("Estación: \n");
-                    Serial.println(WiFi.softAPBroadcastIP() + i);
-                }
-            }
-        }
-        else
-        {
-            Serial.println("Conectado a WiFi");
-            Serial.println(fileManager.getConfig("EXTERNAL_WIFI_SSID"));
-        }
+        Serial.print("\nPunto de acceso iniciado\n");
     }
 }

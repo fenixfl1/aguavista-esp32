@@ -186,3 +186,43 @@ const char *FileManager::getConfig(const char *key)
     const char *value = doc[key];
     return value;
 }
+
+bool FileManager::setConfig(const char *key, const char *value)
+{
+    File file = SPIFFS.open("/config.json", "r");
+    if (!file)
+    {
+        Serial.println("Failed to open file for reading");
+        return false;
+    }
+
+    StaticJsonDocument<200> doc;
+    DeserializationError error = deserializeJson(doc, file);
+    if (error)
+    {
+        Serial.println("Failed to read file, using default configuration");
+        return false;
+    }
+
+    doc[key] = value;
+
+    File file2 = SPIFFS.open("/config.json", "w");
+    if (!file2)
+    {
+        Serial.println("Failed to open file for writing");
+        return false;
+    }
+
+    if (serializeJson(doc, file2) == 0)
+    {
+        Serial.println(F("Failed to write to file"));
+        return false;
+    }
+    else
+    {
+        Serial.println(F("File written"));
+    }
+    file2.close();
+
+    return true;
+}
