@@ -1,14 +1,17 @@
 #ifndef FIREBASE_MANAGER_H
-#define FIREBASE_MANAGER_
+#define FIREBASE_MANAGER_H
 
 #include <Firebase_ESP_Client.h>
-#include "file_manager.h"
+#include "file_system.h"
 
 class FirebaseManager
 {
 public:
     FirebaseManager();
-    void begin(FileManager fileManager);
+    void begin(FileSystem fileSystem);
+    void sendNotification(String title, String message, FirebaseJson json, FileSystem fileSystem);
+    void sendJson(String path, FirebaseJson json);
+    bool ready();
     bool signupOk;
 
 private:

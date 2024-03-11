@@ -10,11 +10,11 @@ bool WifiManager::isConnected()
     return WiFi.status() == WL_CONNECTED;
 }
 
-void WifiManager::begin(FileManager fileManager)
+void WifiManager::begin(FileSystem fileSystem)
 {
 
-    const String ssid = fileManager.getConfig("EXTERNAL_WIFI_SSID"); // "SM-J727P1F1";
-    const String pass = fileManager.getConfig("EXTERNAL_WIFI_PASS"); // "12121212";
+    const String ssid = fileSystem.getConfig("EXTERNAL_WIFI_SSID"); // "SM-J727P1F1";
+    const String pass = fileSystem.getConfig("EXTERNAL_WIFI_PASS"); // "12121212";
 
     if (ssid != NULL)
     {
@@ -35,13 +35,36 @@ void WifiManager::begin(FileManager fileManager)
             Serial.print(".");
             attempts++;
         }
+
+        if (WiFi.status() == WL_CONNECTED)
+        {
+            Serial.print("\nConectado a:\n");
+            Serial.println(ssid);
+            Serial.println(WiFi.localIP());
+        }
+        else
+        {
+            startSoftApp(fileSystem);
+        }
     }
     else
     {
+        startSoftApp(fileSystem);
+    }
+}
+
+void WifiManager::startSoftApp(FileSystem fileSystem)
+{
+    try
+    {
+        if (WiFi.status() == WL_CONNECTED)
+        {
+            WiFi.disconnect(true, true);
+        }
 
         int numStations = WiFi.softAPgetStationNum();
-        const String ssid = fileManager.getConfig("APP_WIFI_SSID");
-        const String pass = fileManager.getConfig("APP_WIFI_PASS");
+        const String ssid = fileSystem.getConfig("APP_WIFI_SSID");
+        const String pass = fileSystem.getConfig("APP_WIFI_PASS");
 
         WiFi.disconnect();
         delay(100);
@@ -50,5 +73,10 @@ void WifiManager::begin(FileManager fileManager)
         WiFi.softAP(ssid, pass);
 
         Serial.print("\nPunto de acceso iniciado\n");
+    }
+    catch (const std::exception &e)
+    {
+        Serial.printf("\n");
+        Serial.printf(e.what());
     }
 }

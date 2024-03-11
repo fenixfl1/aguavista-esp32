@@ -1,10 +1,10 @@
-#include "file_manager.h"
+#include "file_system.h"
 
-FileManager::FileManager()
+FileSystem::FileSystem()
 {
 }
 
-void FileManager::begin()
+void FileSystem::begin()
 {
     if (!SPIFFS.begin(true))
     {
@@ -13,7 +13,7 @@ void FileManager::begin()
     }
 }
 
-void FileManager::listDir(fs::FS &fs, const char *dirname, uint8_t levels)
+void FileSystem::listDir(fs::FS &fs, const char *dirname, uint8_t levels)
 {
     Serial.printf("Listing directory: %s\n", dirname);
 
@@ -52,7 +52,7 @@ void FileManager::listDir(fs::FS &fs, const char *dirname, uint8_t levels)
     }
 }
 
-void FileManager::createDir(fs::FS &fs, const char *path)
+void FileSystem::createDir(fs::FS &fs, const char *path)
 {
     Serial.printf("Creating Dir: %s\n", path);
     if (fs.mkdir(path))
@@ -65,7 +65,7 @@ void FileManager::createDir(fs::FS &fs, const char *path)
     }
 }
 
-void FileManager::removeDir(fs::FS &fs, const char *path)
+void FileSystem::removeDir(fs::FS &fs, const char *path)
 {
     Serial.printf("Removing Dir: %s\n", path);
     if (fs.rmdir(path))
@@ -78,7 +78,7 @@ void FileManager::removeDir(fs::FS &fs, const char *path)
     }
 }
 
-void FileManager::readFile(fs::FS &fs, const char *path)
+void FileSystem::readFile(fs::FS &fs, const char *path)
 {
     Serial.printf("Reading file: %s\n", path);
 
@@ -98,7 +98,7 @@ void FileManager::readFile(fs::FS &fs, const char *path)
     file.close();
 }
 
-void FileManager::writeFile(fs::FS &fs, const char *path, const char *message)
+void FileSystem::writeFile(fs::FS &fs, const char *path, const char *message)
 {
     Serial.printf("Writing file: %s\n", path);
 
@@ -119,7 +119,7 @@ void FileManager::writeFile(fs::FS &fs, const char *path, const char *message)
     file.close();
 }
 
-void FileManager::appendFile(fs::FS &fs, const char *path, const char *message)
+void FileSystem::appendFile(fs::FS &fs, const char *path, const char *message)
 {
     Serial.printf("Appending to file: %s\n", path);
 
@@ -140,7 +140,7 @@ void FileManager::appendFile(fs::FS &fs, const char *path, const char *message)
     file.close();
 }
 
-void FileManager::renameFile(fs::FS &fs, const char *path1, const char *path2)
+void FileSystem::renameFile(fs::FS &fs, const char *path1, const char *path2)
 {
     Serial.printf("Renaming file %s to %s\n", path1, path2);
     if (fs.rename(path1, path2))
@@ -153,7 +153,7 @@ void FileManager::renameFile(fs::FS &fs, const char *path1, const char *path2)
     }
 }
 
-void FileManager::deleteFile(fs::FS &fs, const char *path)
+void FileSystem::deleteFile(fs::FS &fs, const char *path)
 {
     Serial.printf("Deleting file: %s\n", path);
     if (fs.remove(path))
@@ -166,7 +166,7 @@ void FileManager::deleteFile(fs::FS &fs, const char *path)
     }
 }
 
-const char *FileManager::getConfig(const char *key)
+const char *FileSystem::getConfig(const char *key)
 {
     File file = SPIFFS.open("/config.json", "r");
     if (!file)
@@ -187,7 +187,7 @@ const char *FileManager::getConfig(const char *key)
     return value;
 }
 
-bool FileManager::setConfig(const char *key, const char *value)
+bool FileSystem::setConfig(const char *key, const char *value)
 {
     File file = SPIFFS.open("/config.json", "r");
     if (!file)
@@ -225,4 +225,48 @@ bool FileManager::setConfig(const char *key, const char *value)
     file2.close();
 
     return true;
+}
+
+void FileSystem::defaultConfig()
+{
+    StaticJsonDocument<200> doc;
+
+    doc["APP_SERVER_PORT"] = "80";
+    doc["APP_TOKEN"] = "";
+    doc["APP_WIFI_GATEWAY"] = "192.168.4.1";
+    doc["APP_WIFI_IP"] = "192.168.4.1";
+    doc["APP_WIFI_MASK"] = "255.255.255.0";
+    doc["APP_WIFI_PASS"] = "12345678";
+    doc["APP_WIFI_SSID"] = "Aguavista";
+    doc["CONFIG_PAGE_PASSWORD"] = "admin";
+    doc["CONFIG_PAGE_USERNAME"] = "admin";
+    doc["DEVICE_REGISTRATION_ID_TOKEN"] = "frXi8jszRsC4W2c-xzBFJ5:APA91bEynkUC5kE5u1Zzj4wKktPYxOfJltiCPs3gB5cLZJAJPVq4XcHwsVFF10wPZ2D9CFBefyvLpOu1VGmIr-H1uaJiz9IKT9Z8B99991urH8vI2NdUp80E1Njfx--ggEZCIlDYHvOU";
+    doc["EXTERNAL_WIFI_PASS"] = "";
+    doc["EXTERNAL_WIFI_SSID"] = "";
+    doc["FIREBASE_API_KEY"] = "AIzaSyBrKc8hQ4wXaH6eKWj9Yblua2i8cOKmnZQ";
+    doc["FIREBASE_AUTH_MAIL"] = "solojuegosfl119@gmail.com";
+    doc["FIREBASE_AUTH_PASS"] = "adminfl119";
+    doc["FIREBASE_DATABASE_URL"] = "https://aquavista-12cf5-default-rtdb.firebaseio.com/";
+    doc["FIREBASE_FCM_SERVER_KEY"] = "key=AAAAw-1Vpac:APA91bG-ECTVuP3AZmiW7HM7X7lpbrtWi-AAjpQuCi_HHSYfPJC0ukda2g3kHBjDkhUHzRoQJR7vcNexmASW_Rsi-cA5B4Xx4C1TkPgJlHEX9sM-41qnyQlDdMDP7m3T0WeTNPwvvvEF";
+    doc["FIREBASE_NOTIFICATION_URL"] = "https://fcm.googleapis.com/fcm/send";
+    doc["FIREBASE_USER_ID"] = "";
+    doc["LOCAL_SERVER_STATE"] = "ON";
+
+    File file = SPIFFS.open("/config.json", "w");
+    if (!file)
+    {
+        Serial.printf("\nFailed to open file for writing\n");
+        return;
+    }
+
+    if (serializeJson(doc, file) == 0)
+    {
+        Serial.printf("\nFailed to write to file\n");
+    }
+    else
+    {
+        Serial.printf("\nFile written\n");
+    }
+
+    file.close();
 }

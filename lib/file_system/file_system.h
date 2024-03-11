@@ -1,14 +1,14 @@
-#ifndef FILE_MANAGER_H
-#define FILE_MANAGER_H
+#ifndef FILE_SYSTEM_H
+#define FILE_SYSTEM_H
 
 #include <FS.h>
 #include <SPIFFS.h>
 #include <ArduinoJson.h>
 
-class FileManager
+class FileSystem
 {
 public:
-    FileManager();
+    FileSystem();
     void begin();
     void listDir(fs::FS &fs, const char *dirname, uint8_t levels);
     void createDir(fs::FS &fs, const char *path);
@@ -21,6 +21,7 @@ public:
     const char *getConfig(const char *key);
     // setConfig is use to set a value to a key in the config.json file in the SPIFFS and return true if the operation is successful and false if it is not
     bool setConfig(const char *key, const char *value);
+    void defaultConfig();
 };
 
-#endif // FILE_MANAGER_H
+#endif // FILE_SYSTEM_H

@@ -9,7 +9,7 @@ AsyncWebServerManager::AsyncWebServerManager(int http_port, int ws_port)
 {
 }
 
-void AsyncWebServerManager::begin(FileManager fileManager)
+void AsyncWebServerManager::begin(FileSystem fileSystem)
 {
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Methods", "*");
@@ -17,10 +17,14 @@ void AsyncWebServerManager::begin(FileManager fileManager)
 
     server.on("/", HTTP_GET, [this](AsyncWebServerRequest *request)
               { this->onIndexRequest(request); });
-    server.on("/config", HTTP_POST, [this, &fileManager](AsyncWebServerRequest *request)
-              { this->onConfigRequest(request, fileManager); });
     server.on("/style.css", HTTP_GET, std::bind(&AsyncWebServerManager::onCSSRequest, this, std::placeholders::_1));
+    server.on("/reset", HTTP_GET, std::bind(&AsyncWebServerManager::onResetRequest, this, std::placeholders::_1, fileSystem));
     server.onNotFound(std::bind(&AsyncWebServerManager::onPageNotFound, this, std::placeholders::_1));
+
+    AsyncCallbackJsonWebHandler *handler = new AsyncCallbackJsonWebHandler("/config",
+                                                                           std::bind(&AsyncWebServerManager::onConfigRequest, this, std::placeholders::_1, std::placeholders::_2, fileSystem));
+    server.addHandler(handler);
+
     server.begin();
     webSocket.begin();
     webSocket.onEvent(std::bind(&AsyncWebServerManager::onWebSocketEvent, this, std::placeholders::_1,
@@ -94,89 +98,105 @@ void AsyncWebServerManager::onPageNotFound(AsyncWebServerRequest *request)
     request->send(404, "text/plain", "Not found");
 }
 
-void AsyncWebServerManager::onConfigRequest(AsyncWebServerRequest *request, FileManager fileManager)
+void AsyncWebServerManager::onConfigRequest(AsyncWebServerRequest *request, JsonVariant &json, FileSystem fileSystem)
 {
     try
     {
-        // Suponiendo que estás recibiendo los datos del formulario en los parámetros POST
-        if (request->method() == HTTP_POST)
+        if (!json.is<JsonObject>())
         {
-            const String ssid = request->getParam("ssid", true)->value();
-            const String password = request->getParam("pass", true)->value();
-            const String user_id = request->getParam("user_id", true)->value();
-
-            // Realiza aquí la validación de cada uno los datos
-            if (ssid.length() == 0)
-            {
-                request->send(400, "text/plain", "falta: 'ssid'");
-            }
-
-            if (password.length() == 0)
-            {
-                request->send(400, "text/plain", "falta: 'pass'");
-            }
-
-            if (user_id.length() == 0)
-            {
-                request->send(400, "text/plain", "falta: 'user_id'");
-            }
-
-            // test the ssid and password with the wifi manager if it's correct then save it
-            WiFi.begin(ssid.c_str(), password.c_str());
-
-            int attempts = 0;
-            while (WiFi.status() != WL_CONNECTED && attempts < 15)
-            {
-                delay(1000);
-                attempts++;
-            }
-
-            if (WiFi.status() == WL_CONNECTED)
-            {
-                // save the ssid and password to the file system
-                fileManager.setConfig("EXTERNAL_WIFI_SSID", ssid.c_str());
-                fileManager.setConfig("EXTERNAL_WIFI_PASS", password.c_str());
-                fileManager.setConfig("USER_ID", user_id.c_str());
-                request->send(200, "text/plain", "Configuración guardada");
-            }
-            else
-            {
-                request->send(400, "text/plain", "No se pudo conectar a la red");
-            }
-
-            if (request->hasParam("username", false))
-            {
-                request->send(400, "text/plain", "falta: 'username'");
-            }
-            if (request->hasParam("password", false))
-            {
-                request->send(400, "text/plain", "falta: 'password'");
-            }
-
-            else
-            {
-                // Credenciales inválidas, envía un mensaje de error en formato JSON
-                request->send(401, "application/json", "{\"error\": \"Credenciales incorrectas\"}");
-            }
+            request->send(400, "text/plain", "El cuerpo de la solicitud no es un objeto JSON válido");
+            return;
         }
-        else
+
+        // Obtener los datos del JSON
+        JsonObject jsonObj = json.as<JsonObject>();
+
+        // mostrar el json en consola
+        serializeJsonPretty(jsonObj, Serial);
+
+        if (!jsonObj.containsKey("ssid") || !jsonObj.containsKey("pass") || !jsonObj.containsKey("user_id"))
         {
-            // Si la solicitud no es POST
-            request->send(405, "text/plain", "Método no permitido...");
+            request->send(400, "text/plain", "El objeto JSON debe contener las claves 'ssid', 'pass' y 'user_id'");
+            return;
         }
+
+        const String ssid = jsonObj["ssid"].as<String>();
+        const String password = jsonObj["pass"].as<String>();
+        const String user_id = jsonObj["user_id"].as<String>();
+        const String token = jsonObj["token"].as<String>();
+
+        // Realizar validaciones de los datos
+        if (ssid.isEmpty() || password.isEmpty() || user_id.isEmpty())
+        {
+            request->send(400, "text/plain", "Los campos 'ssid', 'pass' y 'user_id' no pueden estar vacíos");
+            return;
+        }
+
+        // Guardar los datos en el sistema de archivos
+        bool ssidSaved = fileSystem.setConfig("EXTERNAL_WIFI_SSID", ssid.c_str());
+        bool passSaved = fileSystem.setConfig("EXTERNAL_WIFI_PASS", password.c_str());
+        bool userIdSaved = fileSystem.setConfig("USER_ID", user_id.c_str());
+        bool appToken = fileSystem.setConfig("APP_TOKEN", token.c_str());
+
+        if (!ssidSaved || !passSaved || !userIdSaved || !appToken)
+        {
+            request->send(500, "text/plain", "Error al guardar la configuración");
+            return;
+        }
+
+        request->send(200, "text/plain", "Configuración guardada");
+        // Reiniciar el dispositivo
+        ESP.restart();
     }
     catch (const std::exception &e)
     {
-        // send the error messaje as response
-        request->send(400, "application/json", "{\"error\": \"Error inesperado. intente nuevamente.\"}");
+        // Si hay un error inesperado
+        request->send(500, "text/plain", "Error interno del servidor");
         // Serial.print(e.what());
     }
 }
 
-void AsyncWebServerManager::onDashboardRequest(AsyncWebServerRequest *request)
+void AsyncWebServerManager::on(const char *uri, WebRequestMethodComposite method, ArRequestHandlerFunction onRequest)
+{
+    try
+    {
+        server.on(uri, method, onRequest);
+    }
+    catch (const std::exception &e)
+    {
+        Serial.print(e.what());
+    }
+}
+
+void AsyncWebServerManager::onResetRequest(AsyncWebServerRequest *request, FileSystem fileSystem)
 {
     IPAddress remote_ip = request->client()->remoteIP();
     Serial.print("[" + remote_ip.toString() +
                  "] HTTP GET request of " + request->url());
-    request->send(SPIFFS, "/dashboard.html", "text/html");
+
+    if (resetDevice(fileSystem) == false)
+    {
+        request->send(500, "text/plain", "Error al reiniciar el dispositivo");
+        return;
+    }
+
+    request->send(200, "text/plain", "Dispositivo restablecido a la configuración predeterminada.");
+}
+
+bool AsyncWebServerManager::resetDevice(FileSystem fileSystem)
+{
+    try
+    {
+        Serial.println("\nRestarting device...\n");
+
+        fileSystem.defaultConfig();
+
+        ESP.restart();
+        return true;
+    }
+    catch (const std::exception &e)
+    {
+        Serial.print(e.what());
+        return false;
+    }
 }

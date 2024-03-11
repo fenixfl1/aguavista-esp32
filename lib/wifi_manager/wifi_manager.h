@@ -1,14 +1,16 @@
 #ifndef WIFI_MANAGER_H
 #define WIFI_MANAGER_H
 
-#include "file_manager.h"
+#include <WiFi.h>
+#include "file_system.h"
 
 class WifiManager
 {
 public:
     WifiManager();
+    void startSoftApp(FileSystem fileSystem);
     bool isConnected();
-    void begin(FileManager fileManager);
+    void begin(FileSystem fileSystem);
 
 private:
     bool initialized;
