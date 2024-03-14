@@ -5,7 +5,8 @@ AsyncWebServerManager::AsyncWebServerManager(int http_port, int ws_port)
     : http_port(http_port),
       ws_port(ws_port),
       server(http_port),
-      webSocket(http_port)
+      webSocket(http_port),
+      httpClient()
 {
 }
 
@@ -78,7 +79,8 @@ void AsyncWebServerManager::onIndexRequest(AsyncWebServerRequest *request)
 {
     IPAddress remote_ip = request->client()->remoteIP();
     Serial.print("[" + remote_ip.toString() +
-                 "] HTTP GET request of " + request->url());
+                 "] HTTP GET request of " + "\n" + request->url());
+
     request->send(SPIFFS, "/index.html", "text/html");
 }
 
@@ -135,7 +137,7 @@ void AsyncWebServerManager::onConfigRequest(AsyncWebServerRequest *request, Json
         // Guardar los datos en el sistema de archivos
         bool ssidSaved = fileSystem.setConfig("EXTERNAL_WIFI_SSID", ssid.c_str());
         bool passSaved = fileSystem.setConfig("EXTERNAL_WIFI_PASS", password.c_str());
-        bool userIdSaved = fileSystem.setConfig("USER_ID", user_id.c_str());
+        bool userIdSaved = fileSystem.setConfigArray("FIREBASE_REGISTRATION_IDS", user_id.c_str());
         bool appToken = fileSystem.setConfig("APP_TOKEN", token.c_str());
 
         if (!ssidSaved || !passSaved || !userIdSaved || !appToken)
@@ -146,6 +148,8 @@ void AsyncWebServerManager::onConfigRequest(AsyncWebServerRequest *request, Json
 
         request->send(200, "text/plain", "Configuración guardada");
         // Reiniciar el dispositivo
+
+        delay(2000);
         ESP.restart();
     }
     catch (const std::exception &e)
@@ -198,5 +202,56 @@ bool AsyncWebServerManager::resetDevice(FileSystem fileSystem)
     {
         Serial.print(e.what());
         return false;
+    }
+}
+
+void AsyncWebServerManager::sendNotification(String title, String message, FileSystem fileSystem)
+{
+    // send a post request to the server using HTTPClient.h
+    try
+    {
+        // JsonArray fcm_keys = fileSystem.getConfigArray("FIREBASE_REGISTRATION_IDS");
+        String fcm_api_key = fileSystem.getConfig("FIREBASE_FCM_SERVER_KEY");
+        String fcm_url = fileSystem.getConfig("FIREBASE_NOTIFICATION_URL");
+        String toke = fileSystem.getConfig("DEVICE_REGISTRATION_ID_TOKEN");
+
+        httpClient.begin(fcm_url);
+
+        httpClient.addHeader("Authorization", fcm_api_key);
+        httpClient.addHeader("Content-Type", "application/json");
+
+        Serial.println("\nAuthorization: ");
+        Serial.println(fcm_api_key);
+
+        JsonDocument doc;
+
+        String data = "{\"registration_ids\": [\"" + toke + "\"], \"notification\": {\"body\":\"" + message + "\", \"title\":\"" + title + "\"}}";
+
+        String payload;
+        serializeJson(doc, payload);
+
+        Serial.println('\n');
+        Serial.println(httpClient.POST(data));
+        Serial.println('\n');
+
+        int httpCode = httpClient.POST(payload);
+
+        if (httpCode > 0)
+        {
+            String response = httpClient.getString();
+            Serial.println(httpCode);
+            Serial.println(response);
+        }
+        else
+        {
+            Serial.println("Error on HTTP request");
+        }
+
+        httpClient.end();
+    }
+    catch (const std::exception &e)
+    {
+        Serial.print("Error on HTTP request:");
+        Serial.println(e.what());
     }
 }

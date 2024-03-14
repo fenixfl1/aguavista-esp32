@@ -38,8 +38,7 @@ void WifiManager::begin(FileSystem fileSystem)
 
         if (WiFi.status() == WL_CONNECTED)
         {
-            Serial.print("\nConectado a:\n");
-            Serial.println(ssid);
+            Serial.print("\Local ip: ");
             Serial.println(WiFi.localIP());
         }
         else

@@ -17,6 +17,6 @@
   "FIREBASE_DATABASE_URL": "https://aquavista-12cf5-default-rtdb.firebaseio.com/",
   "FIREBASE_FCM_SERVER_KEY": "key=AAAAw-1Vpac:APA91bG-ECTVuP3AZmiW7HM7X7lpbrtWi-AAjpQuCi_HHSYfPJC0ukda2g3kHBjDkhUHzRoQJR7vcNexmASW_Rsi-cA5B4Xx4C1TkPgJlHEX9sM-41qnyQlDdMDP7m3T0WeTNPwvvvEF",
   "FIREBASE_NOTIFICATION_URL": "https://fcm.googleapis.com/fcm/send",
-  "FIREBASE_USER_ID": "",
+  "FIREBASE_REGISTRATION_IDS": ["kJwBvwHgcLPSbLXnWx7W8RSYcnl2"],
   "LOCAL_SERVER_STATE": "ON"
 }

@@ -17,9 +17,6 @@ void FirebaseManager::begin(FileSystem fileSystem)
     String email = fileSystem.getConfig(" FIREBASE_AUTH_MAIL ");
     String password = fileSystem.getConfig("FIREBASE_AUTH_PASS");
 
-    Serial.printf("API_KEY: %s\n", api_key.c_str());
-    Serial.printf("DATABASE_URL: %s\n", database_url.c_str());
-
     config.api_key = api_key;
     config.database_url = database_url;
 
@@ -74,7 +71,8 @@ void FirebaseManager::sendNotification(String title, String message, FirebaseJso
         }
         else
         {
-            throw std::runtime_error(firebaseData.errorReason().c_str());
+            Serial.println("\nMessage sending error.\n");
+            Serial.println(firebaseData.errorReason());
         }
     }
     catch (const std::exception &e)
@@ -91,7 +89,7 @@ void FirebaseManager::sendJson(String path, FirebaseJson json)
         {
             sendDataPreviousMillis = millis();
 
-            if (Firebase.RTDB.setJSON(&firebaseData, path, &json))
+            if (Firebase.RTDB.pushJSON(&firebaseData, path, &json))
             {
                 Serial.printf("\nJSON data sent to ");
                 Serial.println(path);
@@ -104,7 +102,7 @@ void FirebaseManager::sendJson(String path, FirebaseJson json)
     }
     catch (std::runtime_error &e)
     {
-        Serial.println("Signup failed");
+        Serial.println(e.what());
     }
 }
 

@@ -175,7 +175,7 @@ const char *FileSystem::getConfig(const char *key)
         return "";
     }
 
-    StaticJsonDocument<200> doc;
+    JsonDocument doc;
     DeserializationError error = deserializeJson(doc, file);
     if (error)
     {
@@ -187,6 +187,42 @@ const char *FileSystem::getConfig(const char *key)
     return value;
 }
 
+const JsonArray FileSystem::getConfigArray(const char *key)
+{
+    try
+    {
+        File file = SPIFFS.open("/config.json", "r");
+        if (!file)
+        {
+            Serial.println("Failed to open file for reading");
+            return JsonArray();
+        }
+
+        JsonDocument doc; // Tamaño del documento depende de la longitud máxima de la cadena JSON
+        DeserializationError error = deserializeJson(doc, file);
+        if (error)
+        {
+            Serial.println("Failed to read file, using default configuration");
+            return JsonArray();
+        }
+
+        if (doc.containsKey(key) && doc[key].is<JsonArray>())
+        {
+            // Verifica si la clave existe y si el valor es un array
+            return doc[key].as<JsonArray>();
+        }
+        else
+        {
+            Serial.println("Key not found or value is not an array");
+            return JsonArray();
+        }
+    }
+    catch (const std::exception &e)
+    {
+        Serial.println(e.what());
+    }
+}
+
 bool FileSystem::setConfig(const char *key, const char *value)
 {
     File file = SPIFFS.open("/config.json", "r");
@@ -196,7 +232,7 @@ bool FileSystem::setConfig(const char *key, const char *value)
         return false;
     }
 
-    StaticJsonDocument<200> doc;
+    JsonDocument doc;
     DeserializationError error = deserializeJson(doc, file);
     if (error)
     {
@@ -218,26 +254,92 @@ bool FileSystem::setConfig(const char *key, const char *value)
         Serial.println(F("Failed to write to file"));
         return false;
     }
-    else
-    {
-        Serial.println(F("File written"));
-    }
+
     file2.close();
 
     return true;
 }
 
+#include <ArduinoJson.h>
+
+bool FileSystem::setConfigArray(const char *key, const char *value)
+{
+    try
+    {
+        // Abrir el archivo JSON en modo de lectura
+        File file = SPIFFS.open("/config.json", "r+");
+        if (!file)
+        {
+            Serial.println("Failed to open file for reading and writing");
+            return false;
+        }
+
+        // Crear un documento JSON y cargar el contenido del archivo
+        JsonDocument doc; // Ajusta el tamaño según el tamaño máximo de tu archivo JSON
+        DeserializationError error = deserializeJson(doc, file);
+        if (error)
+        {
+            Serial.println("Failed to parse file");
+            file.close();
+            return false;
+        }
+
+        // Verificar si la clave existe y si el valor es un array
+        if (doc.containsKey(key) && doc[key].is<JsonArray>())
+        {
+            // Obtener el array
+            JsonArray jsonArray = doc[key].as<JsonArray>();
+
+            // Agregar el nuevo valor al array
+            jsonArray.add(value);
+
+            // Cerrar el archivo antes de escribir los datos actualizados
+            file.close();
+
+            // Reabrir el archivo en modo de escritura, que truncará automáticamente el archivo
+            file = SPIFFS.open("/config.json", "w");
+            if (!file)
+            {
+                Serial.println("Failed to reopen file for writing");
+                return false;
+            }
+
+            // Serializar el documento JSON y escribir los datos actualizados en el archivo
+            if (serializeJson(doc, file) == 0)
+            {
+                Serial.println("Failed to write to file");
+                file.close();
+                return false;
+            }
+
+            // Cerrar el archivo
+            file.close();
+            return true;
+        }
+        else
+        {
+            Serial.println("Key not found or value is not an array");
+            file.close();
+            return false;
+        }
+    }
+    catch (const std::exception &e)
+    {
+        Serial.println(e.what());
+    }
+}
+
 void FileSystem::defaultConfig()
 {
-    StaticJsonDocument<200> doc;
+    JsonDocument doc;
 
+    doc["APP_WIFI_SSID"] = "Aguavista";
     doc["APP_SERVER_PORT"] = "80";
     doc["APP_TOKEN"] = "";
     doc["APP_WIFI_GATEWAY"] = "192.168.4.1";
     doc["APP_WIFI_IP"] = "192.168.4.1";
     doc["APP_WIFI_MASK"] = "255.255.255.0";
     doc["APP_WIFI_PASS"] = "12345678";
-    doc["APP_WIFI_SSID"] = "Aguavista";
     doc["CONFIG_PAGE_PASSWORD"] = "admin";
     doc["CONFIG_PAGE_USERNAME"] = "admin";
     doc["DEVICE_REGISTRATION_ID_TOKEN"] = "frXi8jszRsC4W2c-xzBFJ5:APA91bEynkUC5kE5u1Zzj4wKktPYxOfJltiCPs3gB5cLZJAJPVq4XcHwsVFF10wPZ2D9CFBefyvLpOu1VGmIr-H1uaJiz9IKT9Z8B99991urH8vI2NdUp80E1Njfx--ggEZCIlDYHvOU";
@@ -249,7 +351,7 @@ void FileSystem::defaultConfig()
     doc["FIREBASE_DATABASE_URL"] = "https://aquavista-12cf5-default-rtdb.firebaseio.com/";
     doc["FIREBASE_FCM_SERVER_KEY"] = "key=AAAAw-1Vpac:APA91bG-ECTVuP3AZmiW7HM7X7lpbrtWi-AAjpQuCi_HHSYfPJC0ukda2g3kHBjDkhUHzRoQJR7vcNexmASW_Rsi-cA5B4Xx4C1TkPgJlHEX9sM-41qnyQlDdMDP7m3T0WeTNPwvvvEF";
     doc["FIREBASE_NOTIFICATION_URL"] = "https://fcm.googleapis.com/fcm/send";
-    doc["FIREBASE_USER_ID"] = "";
+    doc["FIREBASE_REGISTRATION_IDS"] = JsonArray();
     doc["LOCAL_SERVER_STATE"] = "ON";
 
     File file = SPIFFS.open("/config.json", "w");

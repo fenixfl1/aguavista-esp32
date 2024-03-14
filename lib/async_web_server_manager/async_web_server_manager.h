@@ -3,6 +3,7 @@
 
 #include <ESPAsyncWebServer.h>
 #include <WebSocketsServer.h>
+#include <HTTPClient.h>
 #include "AsyncJson.h"
 #include "ArduinoJson.h"
 #include "file_system.h"
@@ -11,6 +12,7 @@ class AsyncWebServerManager
 {
 public:
     AsyncWebServerManager(int http_port, int ws_port);
+    void sendNotification(String title, String message, FileSystem fileSystem);
     void begin(FileSystem fileSystem);
     void loop();
     void on(const char *uri, WebRequestMethodComposite method, ArRequestHandlerFunction onRequest);
@@ -20,6 +22,7 @@ private:
     int ws_port;
     AsyncWebServer server;
     WebSocketsServer webSocket;
+    HTTPClient httpClient;
 
     void onIndexRequest(AsyncWebServerRequest *request);
     void onCSSRequest(AsyncWebServerRequest *request);
