@@ -1,5 +1,6 @@
 #include "async_web_server_manager.h"
 #include <WiFi.h>
+#include <Firebase_ESP_Client.h>
 
 AsyncWebServerManager::AsyncWebServerManager(int http_port, int ws_port)
     : http_port(http_port),
@@ -16,12 +17,14 @@ void AsyncWebServerManager::begin(FileSystem fileSystem)
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Methods", "*");
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "Content-Type");
 
-    server.on("/", HTTP_GET, [this](AsyncWebServerRequest *request)
-              { this->onIndexRequest(request); });
+    // server.on("/", HTTP_GET, [this](AsyncWebServerRequest *request)
+    //           { this->onIndexRequest(request); });
+    server.on("/", HTTP_GET, std::bind(&AsyncWebServerManager::onIndexRequest, this, std::placeholders::_1));
     server.on("/style.css", HTTP_GET, std::bind(&AsyncWebServerManager::onCSSRequest, this, std::placeholders::_1));
     server.on("/reset", HTTP_GET, std::bind(&AsyncWebServerManager::onResetRequest, this, std::placeholders::_1, fileSystem));
     server.onNotFound(std::bind(&AsyncWebServerManager::onPageNotFound, this, std::placeholders::_1));
 
+    // Config endpoint. This endpoint is used to configure the device, it use the async callback handler to manage the json data in the request
     AsyncCallbackJsonWebHandler *handler = new AsyncCallbackJsonWebHandler("/config",
                                                                            std::bind(&AsyncWebServerManager::onConfigRequest, this, std::placeholders::_1, std::placeholders::_2, fileSystem));
     server.addHandler(handler);
@@ -102,6 +105,7 @@ void AsyncWebServerManager::onPageNotFound(AsyncWebServerRequest *request)
 
 void AsyncWebServerManager::onConfigRequest(AsyncWebServerRequest *request, JsonVariant &json, FileSystem fileSystem)
 {
+    Serial.println("\nRequest from: " + request->client()->remoteIP().toString() + " to " + request->url() + "\n");
     try
     {
         if (!json.is<JsonObject>())
@@ -126,6 +130,7 @@ void AsyncWebServerManager::onConfigRequest(AsyncWebServerRequest *request, Json
         const String password = jsonObj["pass"].as<String>();
         const String user_id = jsonObj["user_id"].as<String>();
         const String token = jsonObj["token"].as<String>();
+        const String notif = jsonObj["notif"].as<String>();
 
         // Realizar validaciones de los datos
         if (ssid.isEmpty() || password.isEmpty() || user_id.isEmpty())
@@ -137,10 +142,11 @@ void AsyncWebServerManager::onConfigRequest(AsyncWebServerRequest *request, Json
         // Guardar los datos en el sistema de archivos
         bool ssidSaved = fileSystem.setConfig("EXTERNAL_WIFI_SSID", ssid.c_str());
         bool passSaved = fileSystem.setConfig("EXTERNAL_WIFI_PASS", password.c_str());
-        bool userIdSaved = fileSystem.setConfigArray("FIREBASE_REGISTRATION_IDS", user_id.c_str());
+        bool savedNotif = fileSystem.setConfig("DEVICE_REGISTRATION_ID_TOKEN", notif.c_str());
+        bool userIdSaved = fileSystem.setConfig("FIREBASE_REGISTRATION_IDS", user_id.c_str());
         bool appToken = fileSystem.setConfig("APP_TOKEN", token.c_str());
 
-        if (!ssidSaved || !passSaved || !userIdSaved || !appToken)
+        if (!ssidSaved || !passSaved || !userIdSaved || !appToken || !savedNotif)
         {
             request->send(500, "text/plain", "Error al guardar la configuración");
             return;
@@ -156,7 +162,7 @@ void AsyncWebServerManager::onConfigRequest(AsyncWebServerRequest *request, Json
     {
         // Si hay un error inesperado
         request->send(500, "text/plain", "Error interno del servidor");
-        // Serial.print(e.what());
+        Serial.print(e.what());
     }
 }
 
@@ -220,27 +226,17 @@ void AsyncWebServerManager::sendNotification(String title, String message, FileS
         httpClient.addHeader("Authorization", fcm_api_key);
         httpClient.addHeader("Content-Type", "application/json");
 
-        Serial.println("\nAuthorization: ");
-        Serial.println(fcm_api_key);
-
         JsonDocument doc;
+
+        FirebaseJson json;
 
         String data = "{\"registration_ids\": [\"" + toke + "\"], \"notification\": {\"body\":\"" + message + "\", \"title\":\"" + title + "\"}}";
 
-        String payload;
-        serializeJson(doc, payload);
-
-        Serial.println('\n');
-        Serial.println(httpClient.POST(data));
-        Serial.println('\n');
-
-        int httpCode = httpClient.POST(payload);
+        int httpCode = httpClient.POST(data);
 
         if (httpCode > 0)
         {
             String response = httpClient.getString();
-            Serial.println(httpCode);
-            Serial.println(response);
         }
         else
         {

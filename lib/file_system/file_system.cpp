@@ -166,13 +166,13 @@ void FileSystem::deleteFile(fs::FS &fs, const char *path)
     }
 }
 
-const char *FileSystem::getConfig(const char *key)
+const char *FileSystem::getConfig(const char *key, const char *defaultValue)
 {
     File file = SPIFFS.open("/config.json", "r");
     if (!file)
     {
         Serial.println("Failed to open file for reading");
-        return "";
+        return defaultValue;
     }
 
     JsonDocument doc;
@@ -180,10 +180,17 @@ const char *FileSystem::getConfig(const char *key)
     if (error)
     {
         Serial.println("Failed to read file, using default configuration");
-        return "";
+        return defaultValue;
     }
 
     const char *value = doc[key];
+
+    if (value == NULL)
+    {
+        Serial.println("Key not found " + String(key) + " or value is not a string");
+        return defaultValue;
+    }
+
     return value;
 }
 
@@ -326,9 +333,9 @@ bool FileSystem::setConfigArray(const char *key, const char *value)
     catch (const std::exception &e)
     {
         Serial.println(e.what());
+        return false;
     }
 }
-
 void FileSystem::defaultConfig()
 {
     JsonDocument doc;
@@ -351,8 +358,9 @@ void FileSystem::defaultConfig()
     doc["FIREBASE_DATABASE_URL"] = "https://aquavista-12cf5-default-rtdb.firebaseio.com/";
     doc["FIREBASE_FCM_SERVER_KEY"] = "key=AAAAw-1Vpac:APA91bG-ECTVuP3AZmiW7HM7X7lpbrtWi-AAjpQuCi_HHSYfPJC0ukda2g3kHBjDkhUHzRoQJR7vcNexmASW_Rsi-cA5B4Xx4C1TkPgJlHEX9sM-41qnyQlDdMDP7m3T0WeTNPwvvvEF";
     doc["FIREBASE_NOTIFICATION_URL"] = "https://fcm.googleapis.com/fcm/send";
-    doc["FIREBASE_REGISTRATION_IDS"] = JsonArray();
+    doc["FIREBASE_REGISTRATION_IDS"] = "";
     doc["LOCAL_SERVER_STATE"] = "ON";
+    doc["NOTIFICATION_INTERVAL"] = "10";
 
     File file = SPIFFS.open("/config.json", "w");
     if (!file)

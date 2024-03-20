@@ -19,7 +19,7 @@ void WifiManager::begin(FileSystem fileSystem)
     if (ssid != NULL)
     {
         WiFi.begin(ssid.c_str(), pass.c_str());
-        Serial.print("Conectando a WiFi");
+        Serial.print("\nConectando a WiFi");
         int attempts = 0;
 
         // si esta conectado a una red Wifi, apagar el modo AP
@@ -38,7 +38,7 @@ void WifiManager::begin(FileSystem fileSystem)
 
         if (WiFi.status() == WL_CONNECTED)
         {
-            Serial.print("\Local ip: ");
+            Serial.print("\nLocal ip: ");
             Serial.println(WiFi.localIP());
         }
         else

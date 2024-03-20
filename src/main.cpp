@@ -1,159 +1,125 @@
 #include <Arduino.h>
-#include <LiquidCrystal_I2c.h>
-#include <RTClib.h>
 #include <Wire.h>
+#include <RTClib.h>
+#include <time.h>
 #include "file_system.h"
 #include "wifi_manager.h"
 #include "firebase_manager.h"
 #include "async_web_server_manager.h"
 
+#define NTP_SERVER "do.pool.ntp.org" // NTP server used to get the time from the internet
+
 #define TURBIDITY_SENSOR 34
 #define FLOW_SENSOR 21
+#define CALIBRATION_FACTOR 7.9
 
-LiquidCrystal_I2C lcd(0x27, 16, 2);
-
-RTC_DS3231 rtc;
-
-byte statusLed = 13;
-byte sensorInterrupt = 0; // 0 = digital pin 2
-byte sensorPin = 21;
-String getTubidityDate();
-
-float calibrationFactor = 7.9;
 volatile byte pulseCount;
-float flowRate;
-unsigned int flowMilliLitres;
-unsigned long totalMilliLitres;
 
-unsigned long oldTime;
-
-void pulseCounter();
-String getWaterFlowData();
+// VARIABLE TO store the las time the notification was sent
+time_t lastNotificationTime = 0;
 
 FileSystem fileSystem;
 WifiManager wifi;
 FirebaseManager firebase;
 AsyncWebServerManager httpServer(80, 1337);
 
-void setup()
+void IRAM_ATTR pulseCounter()
 {
-  // put your setup code here, to run once:
-  Serial.begin(115200);
-  fileSystem.begin();
-
-  pinMode(statusLed, OUTPUT);
-  digitalWrite(statusLed, HIGH); // We have an active-low LED attached
-
-  pinMode(sensorPin, INPUT);
-  digitalWrite(sensorPin, HIGH);
-
-  pulseCount = 0;
-  flowRate = 0.0;
-  flowMilliLitres = 0;
-  totalMilliLitres = 0;
-  oldTime = 0;
-
-  wifi.begin(fileSystem);
-  httpServer.begin(fileSystem);
-
-  if (wifi.isConnected())
-  {
-    firebase.begin(fileSystem);
-
-    String token = fileSystem.getConfig("APP_TOKEN");
-
-    if (token.length())
-    {
-      String tile = "Aquavista";
-      String message = token;
-
-      FirebaseJson json;
-
-      json.add("status", "online");
-      json.add("device_local_ip", WiFi.localIP().toString().c_str());
-
-      httpServer.sendNotification(tile, message, fileSystem);
-      firebase.sendJson("/datawater", json);
-
-      fileSystem.setConfig("APP_TOKEN", "");
-    }
-  }
-}
-
-void loop()
-{
-  httpServer.loop();
-
-  String token = "sfáodjfa";
-  String title = "Aquavista";
-  String message = "Hello, world!";
-
-  String flowInfo = getWaterFlowData();
-  String turbidity = getTubidityDate();
-
-  // Serial.println(flowInfo);
-  // Serial.println("\n");
-  Serial.println(turbidity);
-
-  /// getWaterFlowData();
-  if (flowInfo != NULL)
-  {
-    // Crear un objeto FirebaseJson y asignarle el JsonDocument
-    FirebaseJson fbJson;
-    fbJson.setJsonData(flowInfo);
-
-    // Enviar los datos a Firebase
-    firebase.sendJson("/datawater", fbJson);
-  }
-
-  delay(1000);
+  pulseCount++; // Incrementa el contador de pulsos cuando se recibe una interrupción
 }
 
 String getWaterFlowData()
 {
+  pulseCount = 0; // Reinicia el contador de pulsos
+
+  attachInterrupt(digitalPinToInterrupt(FLOW_SENSOR), pulseCounter, FALLING); // Habilita la interrupción en el pin 21
+
+  delay(1000); // Espera 1 segundo
+
+  detachInterrupt(digitalPinToInterrupt(FLOW_SENSOR)); // Deshabilita la interrupción en el pin 21
+
+  float flowRate = (pulseCount / CALIBRATION_FACTOR) * 60; // Calcula el flujo en litros por minuto
+
+  // store the last flow rate and compare it with the new one to avoid sending the same value
+  static float lastFlowRate = 0;
+  if (flowRate == lastFlowRate)
+  {
+    return "";
+  }
+
+  lastFlowRate = flowRate;
+
+  return String(flowRate);
+}
+
+float getTurbidityData()
+{
+  int sensorValue = analogRead(TURBIDITY_SENSOR);
+  int digistal = digitalRead(TURBIDITY_SENSOR);
+
+  float voltage = sensorValue * (5.0 / 1023.0);
+  float turbidity = 133.33 * voltage - 33.33;
+
+  Serial.print("\nSensor value: ");
+  Serial.println(sensorValue);
+  Serial.print("Voltage: ");
+  Serial.println(voltage);
+  Serial.print("Turbidity: ");
+  Serial.println(turbidity);
+  // convert to NTU
+  turbidity = 400.0 * pow(abs(turbidity), -1.087);
+
+  // store the last turbidity and compare it with the new one to avoid sending the same value
+  // static float lastTurbidity = 0;
+
+  // if (turbidity == lastTurbidity)
+  // {
+  //   return "";
+  // }
+
+  // lastTurbidity = turbidity;
+
+  return turbidity;
+}
+
+// FUNCTION that get the tiempo from the NTP server and return a string with the time
+String getFormattedTime()
+{
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo))
+  {
+    Serial.println("Failed to obtain time");
+    return "";
+  }
+  char timeStringBuff[50]; // 50 chars should be enough
+  strftime(timeStringBuff, sizeof(timeStringBuff), "%Y-%m-%dT%H:%M:%SZ", &timeinfo);
+  return String(timeStringBuff);
+}
+
+// FUNCTION that send a notification to the app every x minutes (defned if fileSystem.getConfit(NOTIFICATION_INTERVAL) to keep the user updated with the water quality and flow rate
+void notificationTask()
+{
   try
   {
-    if ((millis() - oldTime) > 1000) // Only process counters once per second
+    time_t now = time(nullptr);
+    int interval = atoi(fileSystem.getConfig("NOTIFICATION_INTERVAL", "5"));
+
+    if (now - lastNotificationTime > interval * 60)
     {
-      detachInterrupt(sensorInterrupt);
+      String flow_rate = getWaterFlowData();
+      float turbidity_value = getTurbidityData();
 
-      flowRate = ((1000.0 / (millis() - oldTime)) * pulseCount) / calibrationFactor;
+      Serial.println(turbidity_value);
 
-      oldTime = millis();
+      String turbidity = String(turbidity_value);
 
-      flowMilliLitres = (flowRate / 60) * 1000;
+      if (wifi.isConnected() && getFormattedTime().length() > 0)
+      {
+        httpServer.sendNotification("Aquavista", "La calidad del agua ha cambiado", fileSystem);
+      }
 
-      // Add the millilitres passed in this second to the cumulative total
-      totalMilliLitres += flowMilliLitres;
-
-      unsigned int frac;
-
-      // Reset the pulse counter so we can start incrementing again
-      pulseCount = 0;
-
-      // build a json object to send to the server
-      StaticJsonDocument<200> doc;
-
-      doc["flow_rate"] = flowRate;
-      doc["flow_millilitres"] = flowMilliLitres;
-      doc["total_millilitres"] = totalMilliLitres;
-      doc["total_litres"] = totalMilliLitres / 1000;
-
-      String jsonStr;
-
-      String jsonString = "{\"flow_rate\": " + String(flowRate) + ",";
-      jsonString += "\"flow_millilitres\": " + String(flowMilliLitres) + ",";
-      jsonString += "\"total_millilitres\": " + String(totalMilliLitres) + ",";
-      jsonString += "\"total_litres\": " + String(totalMilliLitres / 1000) + "}";
-
-      serializeJson(doc, jsonStr);
-      // Enable the interrupt again now that we've finished sending output
-      attachInterrupt(sensorInterrupt, pulseCounter, FALLING);
-
-      return jsonString;
+      lastNotificationTime = now;
     }
-
-    return "";
   }
   catch (const std::exception &e)
   {
@@ -161,31 +127,86 @@ String getWaterFlowData()
   }
 }
 
-String getTubidityDate()
+void setup()
 {
-  float volt;
-  float ntu;
+  try
+  {
+    Serial.begin(115200);
+    fileSystem.begin();
 
-  lcd.begin(16, 2);
-  lcd.backlight();
+    configTime(0, 0, NTP_SERVER);
 
-  volt = analogRead(TURBIDITY_SENSOR) * (5.0 / 1023.0);
-  ntu = 133.42 * pow(volt, 3) - 255.86 * pow(volt, 2) + 857.39 * volt;
+    wifi.begin(fileSystem);
 
-  String turbidity = String(ntu) + " NTU";
+    httpServer.begin(fileSystem);
 
-  lcd.setCursor(0, 0);
+    if (wifi.isConnected())
+    {
+      firebase.begin(fileSystem);
 
-  lcd.print(turbidity);
+      String token = fileSystem.getConfig("APP_TOKEN");
 
-  delay(5000);
+      Serial.println("Token: " + token);
 
-  lcd.clear();
+      if (token.length())
+      {
 
-  return turbidity;
+        String tile = "Aquavista";
+        String message = "Su código de confirmación es: " + token;
+
+        FirebaseJson json;
+
+        json.add("status", "online");
+        json.add("device_local_ip", WiFi.localIP().toString().c_str());
+
+        httpServer.sendNotification(tile, message, fileSystem);
+        firebase.sendJson("/device_status", json);
+
+        fileSystem.setConfig("APP_TOKEN", "");
+      }
+    }
+  }
+  catch (const std::exception &e)
+  {
+    Serial.println(e.what());
+  }
 }
 
-void pulseCounter()
+void loop()
 {
-  pulseCount++;
+  try
+  {
+    httpServer.loop();
+
+    String flow_rate = getWaterFlowData();
+    float turbidity_ = getTurbidityData();
+
+    Serial.println(turbidity_);
+
+    String turbidity = String(turbidity_);
+
+    if (wifi.isConnected() && getFormattedTime().length() > 0)
+    {
+      FirebaseJson fbJson;
+
+      fbJson.set("flow", flow_rate);
+      fbJson.set("turbidity", turbidity);
+      fbJson.set("fecha", getFormattedTime());
+      fbJson.set("id", fileSystem.getConfig("FIREBASE_REGISTRATION_IDS"));
+
+      firebase.sendJson("/datawater", fbJson);
+    }
+
+    Serial.println("Flow rate: " + flow_rate + " L/min");
+    Serial.println("Turbidity: " + turbidity + " NTU");
+
+    notificationTask();
+
+    delay(5000);
+  }
+  catch (const std::exception &e)
+  {
+    Serial.println(e.what());
+    Serial.println("Error en el loop principal");
+  }
 }
