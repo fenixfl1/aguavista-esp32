@@ -360,7 +360,13 @@ void FileSystem::defaultConfig()
     doc["FIREBASE_NOTIFICATION_URL"] = "https://fcm.googleapis.com/fcm/send";
     doc["FIREBASE_REGISTRATION_IDS"] = "";
     doc["LOCAL_SERVER_STATE"] = "ON";
-    doc["NOTIFICATION_INTERVAL"] = "10";
+    doc["NOTIFICATION_INTERVAL"] = "1";
+    doc["LAST_DATA_SENT"] = "";
+    doc["LAST_STATE"] = "";
+    doc["LAST_TURBIDITY_STATE"] = "";
+    doc["LAST_FLOW_STATE"] = "";
+    doc["LAST_NOTIFICATION_TIME"] = "";
+    doc["CONFIGURATION_DATE"] = "";
 
     File file = SPIFFS.open("/config.json", "w");
     if (!file)

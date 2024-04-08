@@ -131,6 +131,7 @@ void AsyncWebServerManager::onConfigRequest(AsyncWebServerRequest *request, Json
         const String user_id = jsonObj["user_id"].as<String>();
         const String token = jsonObj["token"].as<String>();
         const String notif = jsonObj["notif"].as<String>();
+        const String date = jsonObj["fecha"].as<String>();
 
         // Realizar validaciones de los datos
         if (ssid.isEmpty() || password.isEmpty() || user_id.isEmpty())
@@ -145,8 +146,9 @@ void AsyncWebServerManager::onConfigRequest(AsyncWebServerRequest *request, Json
         bool savedNotif = fileSystem.setConfig("DEVICE_REGISTRATION_ID_TOKEN", notif.c_str());
         bool userIdSaved = fileSystem.setConfig("FIREBASE_REGISTRATION_IDS", user_id.c_str());
         bool appToken = fileSystem.setConfig("APP_TOKEN", token.c_str());
+        bool dateSaved = fileSystem.setConfig("CONFIGURATION_DATE", date.c_str());
 
-        if (!ssidSaved || !passSaved || !userIdSaved || !appToken || !savedNotif)
+        if (!ssidSaved || !passSaved || !userIdSaved || !appToken || !savedNotif || !dateSaved)
         {
             request->send(500, "text/plain", "Error al guardar la configuración");
             return;
@@ -216,7 +218,6 @@ void AsyncWebServerManager::sendNotification(String title, String message, FileS
     // send a post request to the server using HTTPClient.h
     try
     {
-        // JsonArray fcm_keys = fileSystem.getConfigArray("FIREBASE_REGISTRATION_IDS");
         String fcm_api_key = fileSystem.getConfig("FIREBASE_FCM_SERVER_KEY");
         String fcm_url = fileSystem.getConfig("FIREBASE_NOTIFICATION_URL");
         String toke = fileSystem.getConfig("DEVICE_REGISTRATION_ID_TOKEN");
