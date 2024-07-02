@@ -44,7 +44,7 @@ void IRAM_ATTR pulseCounter()
 String getFormattedTime()
 {
   struct tm timeinfo;
-  if (!getLocalTime(&timeinfo))
+  if (!getLocalTime(&timeinfo) && wifi.isConnected())
   {
     Serial.print("\nGetting time...");
 
@@ -164,92 +164,54 @@ float getTurbidityData()
   }
 
   return NTU;
-
-  // if (tuvidiryValue > MAX_TURBIDITY_SENSOR_VALUE)
-  // {
-  //   tuvidiryValue = MAX_TURBIDITY_SENSOR_VALUE;
-  // }
-
-  // float NTU = map(tuvidiryValue, 0, MAX_TURBIDITY_SENSOR_VALUE, 300, 0);
-
-  // String last_value = fileSystem.getConfig("LAST_TURBIDITY_STATE");
-
-  // float percentage = (tuvidiryValue / MAX_TURBIDITY_SENSOR_VALUE) * 100;
-  // float margen_error = (TURBIDITY_ERROR_MARGIN / 100) * percentage;
-
-  // percentage = percentage - margen_error;
-
-  // Serial.print("\nPorcentaje: " + String(percentage) + "%" + "\n");
-
-  // if (NTU < TURBIDITY_LOW)
-  // {
-  //   if (last_value != "HIGH" && isNotifyConnectionSent)
-  //   {
-  //     Serial.println("La calidad del agua es buena");
-  //     notify("La calidad del agua es buena", "LAST_TURBIDITY_STATE", "HIGH");
-  //   }
-  //   float value = random(0.0, 15.0);
-  //   return value;
-  // }
-  // else if (NTU > TURBIDITY_LOW && NTU < TURBIDITY_MEDIUM)
-  // {
-  //   if (last_value != "MEDIUM" && isNotifyConnectionSent)
-  //   {
-  //     Serial.println("La calidad del agua es regular");
-  //     notify("La calidad del agua es regular", "LAST_TURBIDITY_STATE", "MEDIUM");
-  //   }
-  //   float value = random(16.0, 50.0);
-  //   return value;
-  // }
-
-  // if (last_value != "LOW" && isNotifyConnectionSent)
-  // {
-  //   Serial.println("La calidad del agua es mala");
-  //   notify("La calidad del agua es mala", "LAST_TURBIDITY_STATE", "LOW");
-  // }
-
-  // float value = random(50.0, 99.9);
-
-  // return value;
 }
 
 //  function to notify when the device is connected to the internet
 void notifyConnection()
 {
-  if (wifi.isConnected())
+  try
   {
-    String currentDate;
-    String message;
-    String token = fileSystem.getConfig("APP_TOKEN");
-
-    FirebaseJson json;
-
-    json.add("status", "online");
-    json.add("device_local_ip", WiFi.localIP().toString().c_str());
-    json.add("id", fileSystem.getConfig("FIREBASE_REGISTRATION_IDS"));
-    json.add("ssid", fileSystem.getConfig("EXTERNAL_WIFI_SSID"));
-
-    if (token.isEmpty())
+    if (wifi.isConnected())
     {
-      currentDate = getFormattedTime();
-      message = "El dispositivo está conectado a la red";
-    }
-    else
-    {
-      currentDate = fileSystem.getConfig("CONFIGURATION_DATE");
-      message = "Su código de confirmación es: " + token;
-      fileSystem.setConfig("APP_TOKEN", "");
-    }
+      String currentDate;
+      String message;
+      String localIp = WiFi.localIP().toString();
+      String token = fileSystem.getConfig("APP_TOKEN");
 
-    if (!message.isEmpty() && !isNotifyConnectionSent)
-    {
-      notify(message);
+      FirebaseJson json;
 
-      json.add("fecha", currentDate);
+      json.add("status", "online");
+      json.add("device_local_ip", localIp);
+      json.add("id", fileSystem.getConfig("FIREBASE_REGISTRATION_IDS"));
+      json.add("ssid", fileSystem.getConfig("EXTERNAL_WIFI_SSID"));
 
-      firebase.sendJson("/device_status", json);
-      isNotifyConnectionSent = true;
+      if (token.isEmpty())
+      {
+        currentDate = getFormattedTime();
+        message = "El dispositivo está conectado a la red";
+      }
+      else
+      {
+        currentDate = fileSystem.getConfig("CONFIGURATION_DATE");
+        message = "Su código de confirmación es: " + token;
+        fileSystem.setConfig("APP_TOKEN", "");
+      }
+
+      if (!message.isEmpty() && !isNotifyConnectionSent)
+      {
+        notify(message);
+
+        json.add("fecha", currentDate);
+
+        firebase.sendJson("/device_status", json);
+        isNotifyConnectionSent = true;
+      }
     }
+  }
+  catch (const std::exception &e)
+  {
+    Serial.println("Error en notifyConnection");
+    Serial.println(e.what());
   }
 }
 
@@ -266,8 +228,12 @@ void setup()
     configTime(0, 0, NTP_SERVER);
 
     wifi.begin(fileSystem);
-
     httpServer.begin(fileSystem);
+
+    if (wifi.isConnected())
+    {
+      firebase.begin(fileSystem);
+    }
 
     notifyConnection();
   }

@@ -85,6 +85,7 @@ void FirebaseManager::sendJson(String path, FirebaseJson json)
 {
     try
     {
+
         if (Firebase.ready())
         {
             if (Firebase.RTDB.pushJSON(&firebaseData, path, &json))
@@ -104,6 +105,12 @@ void FirebaseManager::sendJson(String path, FirebaseJson json)
     }
     catch (std::runtime_error &e)
     {
+        String strJson;
+
+        json.toString(strJson);
+
+        Serial.print("\nError on sending JSON data:\n");
+        Serial.println(strJson);
         Serial.println(e.what());
     }
 }
